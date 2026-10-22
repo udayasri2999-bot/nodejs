@@ -6,9 +6,28 @@ const session = require('express-session');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const promClient = require('prom-client');
 
 const app = express();
 const port = 9000;
+
+// Prometheus metrics
+const register = new promClient.Registry();
+promClient.collectDefaultMetrics({ register });
+
+const httpRequestCounter = new promClient.Counter({
+    name: 'http_requests_total',
+    help: 'Total HTTP requests',
+    labelNames: ['method', 'route', 'status'],
+    registers: [register]
+});
+
+const httpRequestDuration = new promClient.Histogram({
+    name: 'http_request_duration_seconds',
+    help: 'HTTP request duration in seconds',
+    labelNames: ['method', 'route'],
+    registers: [register]
+});
 
 // Create uploads folder if not exists
 const uploadDir = path.join(__dirname, 'uploads');
@@ -27,6 +46,22 @@ app.use(session({
 
 // Serve uploaded files
 app.use('/uploads', express.static(uploadDir));
+
+// Track HTTP metrics
+app.use((req, res, next) => {
+    const end = httpRequestDuration.startTimer();
+    res.on('finish', () => {
+        httpRequestCounter.inc({ method: req.method, route: req.path, status: res.statusCode });
+        end({ method: req.method, route: req.path });
+    });
+    next();
+});
+
+// Metrics endpoint for Prometheus
+app.get('/metrics', async (req, res) => {
+    res.set('Content-Type', register.contentType);
+    res.send(await register.metrics());
+});
 
 // Multer storage config
 const storage = multer.diskStorage({
