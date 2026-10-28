@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+terraform
+.env
+.env.*
+!.env.example
+aws-test.txt
+vpc-err.txt
+vpc-out.txt
+push-to-ecr.ps1
+docker-compose.yml
+prometheus.yml
+init.sql
